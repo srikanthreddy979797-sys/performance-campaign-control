@@ -462,7 +462,7 @@ elif nav == "Campaigns":
 
 elif nav == "Keywords":
     st.markdown("## Keyword Management")
-    tab1, tab2, tab3, tab4 = st.tabs(["Add Keywords", "Negatives", "Search Term Harvest", "Match Type Changes"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Add Keywords", "Negatives", "Search Term Harvest", "Promote Search Terms", "Match Type Changes + Ad Schedule"])
 
     with tab1:
         st.markdown('<div class="section-header">Bulk Keyword Addition</div>', unsafe_allow_html=True)
@@ -526,6 +526,45 @@ elif nav == "Keywords":
             st.download_button("Export search terms", mock_terms.to_csv(index=False), "search_terms.csv", "text/csv")
 
     with tab4:
+        st.markdown('<div class="section-header">Promote Search Terms to Keywords</div>', unsafe_allow_html=True)
+        st.info("Takes converting search terms from your harvest report and promotes them to exact or phrase match keywords in the target ad group.", icon="ℹ️")
+        with st.expander("CSV Format — search_terms_to_add.csv"):
+            sample = pd.DataFrame({
+                "search_term": ["buy acme software", "acme pricing", "acme demo"],
+                "campaign_name": ["NonBrand|Search|IN", "NonBrand|Search|IN", "Brand|Search|IN"],
+                "ad_group_name": ["Generic", "Generic", "Brand Core"],
+                "promote_to_match_type": ["EXACT", "PHRASE", "EXACT"],
+                "cpc_bid": [18.0, 14.0, 20.0],
+                "also_add_as_negative_broad": ["TRUE", "TRUE", "FALSE"]
+            })
+            st.dataframe(sample, use_container_width=True)
+            st.download_button("Download template", sample.to_csv(index=False), "search_terms_to_add_template.csv", "text/csv")
+
+        uploaded = st.file_uploader("Upload search_terms_to_add.csv", type=["csv"], key="promo_upload")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            promote_match = st.radio("Default promote to", ["EXACT", "PHRASE"], horizontal=True)
+        with col2:
+            add_negative = st.checkbox("Also add as broad match negative in source campaign", value=True)
+
+        if uploaded is not None:
+            df_preview = pd.read_csv(uploaded)
+            st.markdown(f"**{len(df_preview)} terms loaded** — preview:")
+            st.dataframe(df_preview.head(10), use_container_width=True, hide_index=True)
+
+        if st.button("Promote Search Terms"):
+            with st.spinner("Processing..."):
+                time.sleep(1.2)
+            n = len(df_preview) if uploaded else 3
+            add_log(f"[MOCK] promote_search_terms → {n} terms → {promote_match} match", "ok")
+            if add_negative:
+                add_log(f"[MOCK] add_negative_keywords_bulk → {n} broad negatives added to source campaign", "ok")
+            add_audit("CREATE", "Keywords (promoted)", f"{n} search terms → {promote_match} · negatives={add_negative}")
+            st.success(f"{n} search terms promoted to {promote_match} match (mock).")
+            st.rerun()
+
+    with tab5:
         st.markdown('<div class="section-header">Match Type Changes</div>', unsafe_allow_html=True)
         st.info("Upload CSV to bulk-change keyword match types across campaigns.", icon="ℹ️")
         with st.expander("CSV Format — match_type_changes.csv"):
@@ -545,6 +584,48 @@ elif nav == "Keywords":
             add_log("[MOCK] change_keyword_match_types → validated, no write", "warn")
             st.success("Changes staged (mock). Connect API to execute.")
             st.rerun()
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown('<div class="section-header">Ad Schedule & Device Bid Adjustments</div>', unsafe_allow_html=True)
+        st.info("Set hourly ad schedules and device-level bid adjustments across Search campaigns.", icon="ℹ️")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**Ad Schedule**")
+            sched_campaign = st.text_input("Campaign name", placeholder="Brand|Search|IN", key="sched_camp")
+            days = st.multiselect("Days active", ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+                                  default=["Monday","Tuesday","Wednesday","Thursday","Friday"])
+            col_h1, col_h2 = st.columns(2)
+            with col_h1:
+                hour_start = st.selectbox("Start hour", list(range(0, 24)), index=6)
+            with col_h2:
+                hour_end = st.selectbox("End hour", list(range(1, 25)), index=22)
+
+            if st.button("Apply Ad Schedule"):
+                if sched_campaign:
+                    with st.spinner("Processing..."):
+                        time.sleep(0.8)
+                    day_str = ",".join([d[:3] for d in days])
+                    add_log(f"[MOCK] ad_schedule update → {sched_campaign} · {day_str} {hour_start}:00–{hour_end}:00", "ok")
+                    add_audit("UPDATE", sched_campaign, f"Ad schedule: {day_str} {hour_start}:00–{hour_end}:00")
+                    st.success(f"Ad schedule staged for {sched_campaign} (mock).")
+                    st.rerun()
+
+        with col2:
+            st.markdown("**Device Bid Adjustments**")
+            device_campaign = st.text_input("Campaign name", placeholder="NonBrand|Search|IN", key="dev_camp")
+            mobile_adj = st.slider("Mobile bid adjustment (%)", -100, 300, 0)
+            tablet_adj = st.slider("Tablet bid adjustment (%)", -100, 300, 0)
+            desktop_adj = st.slider("Desktop bid adjustment (%)", -100, 300, 0)
+
+            if st.button("Apply Device Adjustments"):
+                if device_campaign:
+                    with st.spinner("Processing..."):
+                        time.sleep(0.8)
+                    add_log(f"[MOCK] device_bid_adjustment → {device_campaign} · mobile {mobile_adj:+d}% · tablet {tablet_adj:+d}% · desktop {desktop_adj:+d}%", "ok")
+                    add_audit("UPDATE", device_campaign, f"Device bids: mobile {mobile_adj:+d}% · tablet {tablet_adj:+d}% · desktop {desktop_adj:+d}%")
+                    st.success(f"Device bid adjustments staged for {device_campaign} (mock).")
+                    st.rerun()
 
 elif nav == "Display & Audiences":
     st.markdown("## Display & Audience Management")
